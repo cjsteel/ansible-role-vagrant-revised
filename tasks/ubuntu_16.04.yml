@@ -1,0 +1,104 @@
+---
+# roles/vagrant/tasks/ubuntu_16.04.yml
+
+- debug:
+    msg:
+      - "Ubuntu 16.04 not supported at this time"
+      - "System {{ inventory_hostname }} not configured"
+
+# On Controller
+
+## Ensure resources mount exists
+
+- name: Ensure that ~/resources/resources-remote-mount exists
+  delegate_to: 127.0.0.1
+  stat:
+    path: '~/resources/resources-remote-mount'
+  register: path_resources_remote_mount
+  when: vagrant_resources_mount_check
+
+- name: DEBUG value of path_resources_remote_mount
+  debug: var=path_resources_remote_mount
+  when: vagrant_debug and vagrant_resources_mount_check
+
+### ~/resources/resources-remote-mount exists and is regular file
+
+- name: "resources remote mount is mounted"
+  debug:
+    msg: "Path to file resources-remote-mount exists and isreg file"
+  when: (vagrant_debug and vagrant_resources_mount_check) and (
+        path_resources_remote_mount.stat.exists and
+        path_resources_remote_mount.stat.isreg is defined and
+        path_resources_remote_mount.stat.isreg )
+
+### when ~/resources/resources-remote-mount does not exists or is not a  regular file
+
+- name: "version resources path does not exist or is not a directory"
+  debug:
+    msg: "Path to resource version does not exist OR is not a directory"
+  when: (vagrant_debug and vagrant_resources_mount_check) and (
+        path_resources_remote_mount.stat.exists is not defined or
+        path_resources_remote_mount.stat.isreg is not defined or not
+        path_resources_remote_mount.stat.isreg )
+
+- fail:
+    msg: "~/resources/ is not mounted or ~/resources/resources-remote-mount is not a regular file"
+  when: vagrant_resources_mount_check and (
+        path_resources_remote_mount.stat.exists is not defined or
+        path_resources_remote_mount.stat.isreg is not defined or not
+        path_resources_remote_mount.stat.isreg)
+
+### Ensure vagrant latest resources directory exists
+
+- name: "Ensure for resources directory exists"
+  delegate_to: 127.0.0.1
+  file:
+    path: ~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/latest/
+    state: directory
+    mode: 0755
+
+## Determine the latest available version of vagrant available from hasicorp
+
+- name: "Grab repository index as text file"
+  delegate_to: 127.0.0.1
+  shell: html2txt --ignore-links https://releases.hashicorp.com/vagrant/ > index.txt
+  args:
+    chdir: '~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/latest'
+
+- name: "Extract available vagrant versions"
+  delegate_to: 127.0.0.1
+  shell: cat index.txt | cut -c 13-19 | sed '1d' > vagrant_all_available_versions.txt.raw
+  args:
+    chdir: '~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/latest'
+
+- name: "Extract latest available vagrant version"
+  delegate_to: 127.0.0.1
+  shell: sed -n 1p vagrant_all_available_versions.txt.raw > vagrant_latest_version.txt
+  args:
+    chdir: '~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/latest'
+
+- name: Set value of virtualbox_lastest_available_version variable
+  delegate_to: 127.0.0.1
+  shell: cat ~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/latest/vagrant_latest_version.txt
+  register: vagrant_lastest_available_version
+
+## Split version (not required)
+
+- name: split value of vagrant_latest_version.txt.stdout
+  debug:
+    msg: "{{ vagrant_lastest_available_version.stdout.split('.') }}"
+  register: myoutput
+
+- name: "loop through list from a variable"
+  debug:
+    msg: "An item: {{item}}"
+  with_items: "{{ myoutput.msg }}"
+
+- name: "Register vagrant_latest_major_minor_patch_increment"
+  debug:
+    msg: "{{ myoutput.msg[0] }}.{{ myoutput.msg[1] }}.{{ myoutput.msg[2] }}"
+  register: vagrant_latest_major_minor_patch
+
+- name: "DEBUG virtualbox_major_minor_version"
+  debug:
+    var: vagrant_latest_major_minor_patch

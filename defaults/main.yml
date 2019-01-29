@@ -3,6 +3,7 @@
 
 vagrant_debug: false
 vagrant_resources_mount_check: false
+vagrant_refresh_resource_version: false
 
 ## atomic versioning example
 #

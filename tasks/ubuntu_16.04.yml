@@ -59,13 +59,13 @@
 
 ## Determine the latest available version of vagrant available from hasicorp
 
-- name: "Grab repository index as text file"
+- name: "Grab the hashicorp repository index and save as a text file"
   delegate_to: 127.0.0.1
   shell: html2txt --ignore-links https://releases.hashicorp.com/vagrant/ > index.txt
   args:
     chdir: '~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/latest'
 
-- name: "Extract available vagrant versions"
+- name: "Extract all currently vagrant versions available from hashicorp"
   delegate_to: 127.0.0.1
   shell: cat index.txt | cut -c 13-19 | sed '1d' > vagrant_all_available_versions.txt.raw
   args:
@@ -81,6 +81,86 @@
   delegate_to: 127.0.0.1
   shell: cat ~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/latest/vagrant_latest_version.txt
   register: vagrant_lastest_available_version
+
+### Ensure directory for latest version exists
+
+- name: "DEBUG value of {{ ansible_distribution_version }}"
+  debug:
+    msg: "{{ ansible_distribution_version }}"
+
+- name: "Ensure versioned resources directory exists"
+  delegate_to: 127.0.0.1
+  file:
+    path: '~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/{{ vagrant_lastest_available_version.stdout }}/'
+    state: directory
+    mode: 0755
+
+## Populate the controller if required resources are not available.
+
+### Download the Extension Pack from download.virtualbox.org
+
+- name: "Download vagrant_{{ vagrant_lastest_available_version.stdout }}_SHA256SUMS from releases.hashicorp.com"
+  delegate_to: 127.0.0.1
+  get_url:
+    url: "https://releases.hashicorp.com/vagrant/{{ vagrant_lastest_available_version.stdout }}/vagrant_{{ vagrant_lastest_available_version.stdout }}_SHA256SUMS"
+    dest: "~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/{{ vagrant_lastest_available_version.stdout }}/."
+    force: '{{ vagrant_refresh_resource_version }}'
+
+- name: "Download vagrant_{{ vagrant_lastest_available_version.stdout }}_SHA256SUMS.sig from releases.hashicorp.com"
+  delegate_to: 127.0.0.1
+  get_url:
+    url: "https://releases.hashicorp.com/vagrant/{{ vagrant_lastest_available_version.stdout }}/vagrant_{{ vagrant_lastest_available_version.stdout }}_SHA256SUMS.sig"
+    dest: "~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/{{ vagrant_lastest_available_version.stdout }}/."
+    force: '{{ vagrant_refresh_resource_version }}'
+
+- name: "Download vagrant_{{ vagrant_lastest_available_version.stdout }}_x86_64.deb from releases.hashicorp.com"
+  delegate_to: 127.0.0.1
+  get_url:
+    url: "https://releases.hashicorp.com/vagrant/{{ vagrant_lastest_available_version.stdout }}/vagrant_{{ vagrant_lastest_available_version.stdout }}_x86_64.deb"
+    dest: "~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/{{ vagrant_lastest_available_version.stdout }}/."
+    checksum: "sha256: 2b8392dfc02d161f674dde7ad08297e2831b233b14b6db6bb12ac12ae9d90f7f"
+    force: '{{ vagrant_refresh_resource_version }}'
+
+## Which vagrant version, if any, is installed on the target?
+#
+# delegate_to used for testing againts a development systems with vagrant installed
+
+- name: "checking if vagrant is installed and if so what version"
+  #  delegate_to: 127.0.0.1
+  command: vagrant --version
+  register: vagrant_installed_version.raw
+  ignore_errors: true
+
+### when vagrant is installed on target sytem
+
+- name: "DEBUG value of vagrant_installed_version.raw"
+  debug: var=vagrant_installed_version.raw
+  when: vagrant_debug
+
+### when vagrant is not installed on target
+
+- name: "DEBUG value of vagrant_installed_version"
+  debug: msg='vagrant --version returns'
+  when: vagrant_installed_version.rar.stdout is not defined
+  ignore_errors: true
+
+## Ensure for resources on target system
+
+### Ensure for resources directory on target
+
+- name: "Ensure versioned resources directory exists on target system"
+  file:
+    path: '~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/{{ vagrant_lastest_available_version.stdout }}/'
+    state: directory
+    mode: 0755
+
+### Copy over resources
+
+- name: "Copy the contents of our resource directory to our target system"
+  copy:
+    src: '~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant/{{ vagrant_lastest_available_version.stdout }}'
+    dest: '~/resources/sw/{{ ansible_distribution | lower }}/{{ ansible_distribution_version }}/vagrant'
+    mode: 0755
 
 ## Split version (not required)
 

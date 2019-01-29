@@ -2,7 +2,8 @@
   # vi: set ft=ruby ts=2 sw=2 tw=0 et :
 # bump your IPs and include version when adding new boxes
 # https://app.vagrantup.com/debian
-
+# 
+# DEPRECIATED - now using molecule
   role = File.basename(File.expand_path(File.dirname(__FILE__)))
   gui = true
 
